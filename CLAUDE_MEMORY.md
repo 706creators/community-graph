@@ -25,16 +25,16 @@
 ```
 /app                           # Next.js App Router根目录
 ├── api/chat/route.ts          # AI聊天API端点 - 核心分析功能
-├── components/                 # React组件目录
-│   ├── CommunityGraph2.js     # 主要D3.js图形组件 - 最重要的可视化组件
+├── components/                 # React组件目录（全部TypeScript化）
+│   ├── CommunityGraph.tsx     # 主要D3.js图形组件 - 最重要的可视化组件
 │   ├── AIChat.tsx             # AI聊天界面组件
 │   └── Sidebar.tsx            # 数据上传侧边栏
-├── types/graph.ts             # TypeScript类型定义
-├── utils/                     # 工具函数库
-│   ├── graphUtils.js          # D3图形工具函数
+├── types/                     # TypeScript类型定义目录
+│   └── index.ts               # 核心数据类型接口
+├── utils/                     # TypeScript工具函数库
+│   ├── graph.ts               # D3图形工具函数
 │   ├── csvParser.ts           # CSV数据解析逻辑
-│   ├── timelineUtils.js       # 时间线可视化工具
-│   └── renderUtils.js         # 渲染辅助函数
+│   └── timeline.ts            # 时间线可视化工具
 ├── layout.tsx                 # 根布局组件
 ├── page.tsx                   # 主应用入口 - 三面板布局管理
 └── globals.css                # 全局样式定义
@@ -52,7 +52,8 @@
 
 ## 核心功能模块
 
-### 1. 图形可视化系统 (CommunityGraph2.js)
+### 1. 图形可视化系统 (CommunityGraph.tsx)
+- **完全TypeScript化** - 重构为.tsx文件，提供完整类型安全
 - **D3.js力导向图** - 实现节点和边的动态布局
 - **节点类型系统** - member(成员)、event(活动)、space(场地)三种类型
 - **关系类型** - initiates(发起)、participates(参与)、hosts(主办)
@@ -72,7 +73,7 @@
 
 ## 关键数据结构
 
-### TypeScript接口定义 (types/graph.ts)
+### TypeScript接口定义 (types/index.ts)
 ```typescript
 interface Node {
   id: string;                  // 唯一标识符
@@ -108,17 +109,18 @@ interface GraphData {
 
 ### 主要开发注意事项
 
-1. **D3.js集成** - CommunityGraph2.js是核心组件，处理所有图形渲染逻辑
+1. **D3.js集成** - CommunityGraph.tsx是核心组件，处理所有图形渲染逻辑（已TypeScript化）
 2. **状态管理** - 主要状态在page.tsx中管理，通过props传递给子组件
 3. **AI API集成** - 需要处理不同AI提供商的API格式差异
 4. **数据处理** - CSV解析需要处理多值字段(如多个发起人用分号分隔)
-5. **TypeScript类型** - 严格遵循types/graph.ts中定义的接口
+5. **TypeScript类型** - 严格遵循types/index.ts中定义的接口，全项目类型安全
+6. **重构完成** - 所有JavaScript文件已成功重构为TypeScript，提供更好的开发体验
 
 ### 扩展指南
 
 #### 添加新的节点类型
-1. 更新types/graph.ts中的Node接口
-2. 在CommunityGraph2.js中添加对应的视觉样式
+1. 更新types/index.ts中的Node接口
+2. 在CommunityGraph.tsx中添加对应的视觉样式
 3. 更新CSV解析逻辑以支持新类型
 
 #### 添加新的AI提供商
@@ -127,7 +129,7 @@ interface GraphData {
 3. 更新AIChat.tsx中的provider选择器
 
 #### 自定义图形样式
-主要修改CommunityGraph2.js中的D3配置：
+主要修改CommunityGraph.tsx中的D3配置：
 - 节点颜色、大小、形状
 - 边的样式、宽度、颜色
 - 力导向图参数
@@ -163,7 +165,8 @@ interface GraphData {
 6. 数据持久化存储
 
 ## 文件修改提醒
-- 修改CommunityGraph2.js时需要小心D3.js的DOM操作逻辑
+- 修改CommunityGraph.tsx时需要小心D3.js的DOM操作逻辑（已TypeScript化）
 - API路由修改需要保持向后兼容性
 - TypeScript类型定义更新需要同步修改相关实现
 - CSS样式修改需要注意响应式设计
+- **重构完成状态** - 项目已完全迁移到TypeScript，所有新开发应使用TypeScript

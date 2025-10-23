@@ -55,15 +55,15 @@
 ├── app/                      # Next.js App Router目录
 │   ├── api/chat/route.ts    # AI聊天API端点
 │   ├── components/          # React组件
-│   │   ├── CommunityGraph2.js # 主要的D3.js图形组件
+│   │   ├── CommunityGraph.tsx # 主要的D3.js图形组件
 │   │   ├── AIChat.tsx       # AI聊天界面
 │   │   └── Sidebar.tsx      # 数据上传侧边栏
-│   ├── types/graph.ts       # TypeScript接口定义
-│   ├── utils/              # 工具函数
-│   │   ├── graphUtils.js    # D3图形工具
+│   ├── types/               # TypeScript类型定义
+│   │   └── index.ts         # 核心数据类型接口
+│   ├── utils/              # TypeScript工具函数
+│   │   ├── graph.ts        # D3图形工具
 │   │   ├── csvParser.ts    # CSV数据解析
-│   │   ├── timelineUtils.js # 时间线可视化
-│   │   └── renderUtils.js   # 渲染辅助函数
+│   │   └── timeline.ts     # 时间线可视化
 │   ├── layout.tsx          # 根布局
 │   ├── page.tsx            # 主页面
 │   └── globals.css         # 全局样式
@@ -152,7 +152,7 @@ interface Edge {
 
 ### 主要组件
 - `app/page.tsx` - 主应用入口，管理三面板布局
-- `app/components/CommunityGraph2.js` - D3.js图形渲染组件
+- `app/components/CommunityGraph.tsx` - D3.js图形渲染组件（TypeScript重构）
 - `app/api/chat/route.ts` - AI分析API端点
 
 ### 添加新的AI提供商
@@ -161,7 +161,13 @@ interface Edge {
 3. 更新前端provider选择器
 
 ### 自定义图形样式
-修改 `app/utils/graphUtils.js` 中的D3配置来自定义节点和边的样式。
+修改 `app/utils/graph.ts` 中的D3配置来自定义节点和边的样式。
+
+### TypeScript开发优势
+- **类型安全** - 所有组件和函数都有严格的类型定义
+- **更好的IDE支持** - 自动补全和错误检查
+- **易于维护** - 清晰的接口定义提高代码可读性
+- **重构友好** - 类型系统帮助安全地进行代码重构
 
 ## 📚 API文档
 
