@@ -6,7 +6,7 @@ import {
   XMarkIcon, 
   PaperAirplaneIcon 
 } from '@heroicons/react/24/outline';
-import type { GraphData } from '../types/graph';
+import type { GraphData } from '@/types';
 
 interface Message {
   id: string;

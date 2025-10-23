@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import D3Example from "@/app/components/CommunityGraph2";
+import D3Example from "@/app/components/CommunityGraph";
 import Sidebar from "@/app/components/Sidebar";
 import AIChat from "@/app/components/AIChat";
-import { GraphData } from "./types/graph";
+import { GraphData } from "@/types";
 
 export default function Home() {
   const [uploadedData, setUploadedData] = useState<GraphData | null>(null);
