@@ -1,29 +1,37 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as d3 from 'd3';
-import { 
-  symbolTypes, 
-  findDownstreamNodes, 
-  calculateLinkDistance, 
-  createArrowMarkers, 
+import {
+  symbolTypes,
+  findDownstreamNodes,
+  calculateLinkDistance,
+  createArrowMarkers,
   createTooltip,
-  getNodeLabel 
-} from '../utils/graphUtils';
-import { 
-  createTimeScale, 
-  createTimeAxis, 
-  createTimeGrid, 
-  addTimeConstraints 
-} from '../utils/timelineUtils';
+  getNodeLabel
+} from '../utils/graph';
+import {
+  createTimeScale,
+  createTimeAxis,
+  createTimeGrid,
+  addTimeConstraints
+} from '../utils/timeline';
+import {
+  CommunityGraphProps,
+  GraphData,
+  SimulationNode,
+  SimulationLink,
+  Size,
+  D3SelectionRefs
+} from '@/types';
 
-export default function CommunityGraph({ width = 800, height = 600, data: externalData }) {
-  const containerRef = useRef(null);
-  const svgRef = useRef(null);
-  const simulationRef = useRef(null);
-  const elementsRef = useRef({}); // 存储 D3 选择集引用
-  
-  const [data, setData] = useState(null);
-  const [size, setSize] = useState({ width, height });
-  const [selectedNode, setSelectedNode] = useState(null);
+export default function CommunityGraph({ width = 800, height = 600, data: externalData }: CommunityGraphProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const simulationRef = useRef<d3.Simulation<SimulationNode, SimulationLink> | null>(null);
+  const elementsRef = useRef<D3SelectionRefs>({});
+
+  const [data, setData] = useState<GraphData | null>(null);
+  const [size, setSize] = useState<Size>({ width, height });
+  const [selectedNode, setSelectedNode] = useState<SimulationNode | null>(null);
 
   // 数据加载 effect
   useEffect(() => {
@@ -32,7 +40,7 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
     } else {
       fetch('/graph_data.json')
         .then(response => response.json())
-        .then(data => setData(data))
+        .then(graphData => setData(graphData))
         .catch(error => console.error('Error fetching the data:', error));
     }
   }, [externalData]);
@@ -41,9 +49,9 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
   useEffect(() => {
     const roEl = containerRef.current;
     if (!roEl) return;
-    
+
     const observer = new ResizeObserver(entries => {
-      for (let entry of entries) {
+      for (const entry of entries) {
         const cr = entry.contentRect;
         setSize({
           width: Math.max(1, Math.floor(cr.width)),
@@ -51,63 +59,52 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
         });
       }
     });
-    
+
     observer.observe(roEl);
     return () => observer.disconnect();
   }, []);
 
-  // 绘制 effect - 只在数据或尺寸变化时重建
-  useEffect(() => {
-    if (data && size.width && size.height) {
-      draw();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, size]);
-
-  // 选中节点变化时只更新样式
-  useEffect(() => {
-    if (data && elementsRef.current.linkSelection && elementsRef.current.nodeSelection && elementsRef.current.labelSelection) {
-      updateHighlighting();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNode]);
-
   // 添加拖拽行为的辅助函数
-  const addDragBehavior = (nodeSelection, simulation) => {
-    return nodeSelection.call(d3.drag()
-      .on('start', function (event, d) {
+  const addDragBehavior = useCallback((
+    nodeSelection: d3.Selection<SVGPathElement, SimulationNode, SVGGElement, unknown>,
+    simulation: d3.Simulation<SimulationNode, SimulationLink>
+  ): void => {
+    nodeSelection.call(d3.drag<SVGPathElement, SimulationNode>()
+      .on('start', function (event: d3.D3DragEvent<SVGPathElement, SimulationNode, SimulationNode>) {
         if (!event.active) simulation.alphaTarget(0.3).restart();
-        d.fx = d.x;
-        d.fy = d.y;
+        event.subject.fx = event.subject.x;
+        event.subject.fy = event.subject.y;
       })
-      .on('drag', function (event, d) {
-        d.fx = event.x;
-        d.fy = event.y;
+      .on('drag', function (event: d3.D3DragEvent<SVGPathElement, SimulationNode, SimulationNode>) {
+        event.subject.fx = event.x;
+        event.subject.fy = event.y;
       })
-      .on('end', function (event, d) {
+      .on('end', function (event: d3.D3DragEvent<SVGPathElement, SimulationNode, SimulationNode>) {
         if (!event.active) simulation.alphaTarget(0);
-        d.fx = null;
-        d.fy = null;
+        event.subject.fx = null;
+        event.subject.fy = null;
       })
     );
-  };
+  }, []);
 
-  const updateHighlighting = () => {
-    if (!data || !elementsRef.current.linkSelection) return;
+  // 更新高亮状态的函数
+  const updateHighlighting = useCallback(() => {
+    if (!data || !elementsRef.current.linkSelection || !elementsRef.current.nodeSelection || !elementsRef.current.labelSelection) {
+      return;
+    }
 
-    // 使用存储的原始数据进行计算
     const color = d3.scaleOrdinal(d3.schemeCategory10);
 
     // 计算高亮的节点和边
-    let highlightedNodes = new Set();
-    let highlightedEdgeIndices = new Set();
-    
+    let highlightedNodes = new Set<string>();
+    const highlightedEdgeIndices = new Set<number>();
+
     if (selectedNode) {
-      const downstream = findDownstreamNodes(selectedNode.id, elementsRef.current.originalEdges);
+      const downstream = findDownstreamNodes(selectedNode.id, elementsRef.current.originalEdges || []);
       highlightedNodes = new Set([selectedNode.id, ...downstream.nodes]);
-      
+
       // 通过边的索引来标记高亮边
-      elementsRef.current.originalEdges.forEach((edge, index) => {
+      elementsRef.current.originalEdges?.forEach((edge, index) => {
         if (downstream.edges.has(edge)) {
           highlightedEdgeIndices.add(index);
         }
@@ -116,27 +113,27 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
 
     // 更新链接样式
     elementsRef.current.linkSelection
-      .attr('stroke', (d, i) => highlightedEdgeIndices.has(i) ? '#ff6b35' : '#999')
-      .attr('stroke-opacity', (d, i) => highlightedEdgeIndices.has(i) ? 1 : (selectedNode ? 0.1 : 0.6))
-      .attr('stroke-width', (d, i) => highlightedEdgeIndices.has(i) ? 3 : Math.sqrt(d.value || 1))
-      .attr('marker-end', (d, i) => highlightedEdgeIndices.has(i) ? 'url(#arrowhead-highlight)' : 'url(#arrowhead)');
+      .attr('stroke', (_d: SimulationLink, i: number) => highlightedEdgeIndices.has(i) ? '#ff6b35' : '#999')
+      .attr('stroke-opacity', (_d: SimulationLink, i: number) => highlightedEdgeIndices.has(i) ? 1 : (selectedNode ? 0.1 : 0.6))
+      .attr('stroke-width', (d: SimulationLink, i: number) => highlightedEdgeIndices.has(i) ? 3 : Math.sqrt(d.value || 1))
+      .attr('marker-end', (_d: SimulationLink, i: number) => highlightedEdgeIndices.has(i) ? 'url(#arrowhead-highlight)' : 'url(#arrowhead)');
 
     // 更新节点样式
     elementsRef.current.nodeSelection
-      .attr('fill', d => {
+      .attr('fill', (d: SimulationNode) => {
         if (selectedNode && d.id === selectedNode.id) {
           return '#ff6b35';
         } else if (highlightedNodes.has(d.id)) {
           return '#ffb347';
         } else {
-          return color(d.type || d.group);
+          return color(d.type || d.group?.toString() || 'default');
         }
       })
-      .attr('opacity', d => {
+      .attr('opacity', (d: SimulationNode) => {
         if (!selectedNode) return 1;
         return highlightedNodes.has(d.id) ? 1 : 0.2;
       })
-      .attr('stroke-width', d => {
+      .attr('stroke-width', (d: SimulationNode) => {
         if (selectedNode && d.id === selectedNode.id) {
           return 3;
         } else if (highlightedNodes.has(d.id)) {
@@ -148,13 +145,16 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
 
     // 更新标签样式
     elementsRef.current.labelSelection
-      .attr('opacity', d => {
+      .attr('opacity', (d: SimulationNode) => {
         if (!selectedNode) return 1;
         return highlightedNodes.has(d.id) ? 1 : 0.3;
       });
-  };
+  }, [data, selectedNode]);
 
-  const draw = () => {
+  // 绘制主函数
+  const draw = useCallback(() => {
+    if (!svgRef.current || !data) return;
+
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
 
@@ -177,15 +177,15 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
     const color = d3.scaleOrdinal(d3.schemeCategory10);
 
     // 数据处理
-    const links = data.edges.map(d => ({ ...d }));
-    const nodes = data.nodes.map(d => ({ ...d }));
+    const links: SimulationLink[] = data.edges.map(d => ({ ...d }));
+    const nodes: SimulationNode[] = data.nodes.map(d => ({ ...d }));
 
     // 时间轴处理
     const { timeScale } = createTimeScale(nodes, size, margin);
 
     // 创建力导向图仿真
-    const simulation = d3.forceSimulation(nodes)
-      .force('link', d3.forceLink(links)
+    const simulation = d3.forceSimulation<SimulationNode>(nodes)
+      .force('link', d3.forceLink<SimulationNode, SimulationLink>(links)
         .id(d => d.id)
         .distance(calculateLinkDistance)
       )
@@ -194,13 +194,15 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
         .distanceMax(200)
       )
       .force('center', d3.forceCenter(graphWidth / 2 + margin.left, graphHeight / 2 + margin.top))
-      .force('collision', d3.forceCollide().radius(30));
+      .force('collision', d3.forceCollide<SimulationNode>().radius(30));
 
     // 存储仿真引用
     simulationRef.current = simulation;
 
     // 添加时间约束
-    addTimeConstraints(simulation, timeScale, size, margin);
+    if (timeScale) {
+      addTimeConstraints(simulation, timeScale, size, margin);
+    }
 
     // 创建SVG结构
     const defs = svg.append('defs');
@@ -210,23 +212,27 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
     const zoomableContainer = svg.append('g').attr('class', 'zoomable-container');
 
     // 创建时间轴
-    createTimeAxis(fixedLayer, timeScale, size, margin);
-    createTimeGrid(zoomableContainer, timeScale, size, margin);
+    if (timeScale) {
+      createTimeAxis(fixedLayer, timeScale, size, margin);
+      createTimeGrid(zoomableContainer, timeScale, size, margin);
+    }
 
     // 创建缩放行为
-    const zoom = d3.zoom()
+    const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.1, 10])
       .on('zoom', (event) => {
         zoomableContainer.attr('transform', event.transform);
-        
+
         if (timeScale) {
           const newTimeScale = event.transform.rescaleX(timeScale);
           const newTimeAxis = d3.axisBottom(newTimeScale)
-            .tickFormat(d3.timeFormat("%m/%d %H:%M"))
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .tickFormat(d3.timeFormat("%m/%d %H:%M") as any)
             .ticks(8);
-          
+
           fixedLayer.select('.time-axis')
-            .call(newTimeAxis)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            .call(newTimeAxis as any)
             .selectAll('text')
             .style('font-size', '12px')
             .style('fill', '#666')
@@ -253,10 +259,14 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
       .selectAll('path')
       .data(nodes)
       .join('path')
-      .attr('d', d => symbol.type(symbolTypes[d.type || d.group || 'member'])())
-      .attr('fill', d => color(d.type || d.group))
+      .attr('d', d => {
+        const symbolType = symbolTypes[d.type || d.group?.toString() || 'member'];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return (symbol.type(symbolType) as any)();
+      })
+      .attr('fill', d => color(d.type || d.group?.toString() || 'default'))
       .style('cursor', 'pointer')
-      .on("click", function (event, d) {
+      .on("click", function (event: MouseEvent, d: SimulationNode) {
         event.stopPropagation();
         if (selectedNode && selectedNode.id === d.id) {
           setSelectedNode(null);
@@ -264,16 +274,16 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
           setSelectedNode(d);
         }
       })
-      .on("mouseover", function (event, d) {
+      .on("mouseover", function (event: MouseEvent, d: SimulationNode) {
         const tooltipText = d.time ? `${d.id}\n${d.time}` : d.id;
         tooltip.html(tooltipText.replace('\n', '<br>'));
         return tooltip.style("visibility", "visible");
       })
-      .on("mousemove", function (event) {
+      .on("mousemove", function (event: MouseEvent) {
         return tooltip.style("top", (event.pageY - 10) + "px").style("left", (event.pageX + 10) + "px");
       })
-      .on("mouseout", function () { 
-        return tooltip.style("visibility", "hidden"); 
+      .on("mouseout", function () {
+        return tooltip.style("visibility", "hidden");
       });
 
     const labelSelection = zoomableContainer.append('g')
@@ -291,14 +301,15 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
       linkSelection,
       nodeSelection,
       labelSelection,
-      originalEdges: links  // 保存原始边数据用于高亮计算
+      originalEdges: links
     };
 
     // 添加拖拽行为
-    addDragBehavior(nodeSelection, simulation);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    addDragBehavior(nodeSelection as any, simulation);
 
     // 点击空白处取消选中
-    svg.on("click", function(event) {
+    svg.on("click", function(event: MouseEvent) {
       if (event.target === event.currentTarget) {
         setSelectedNode(null);
       }
@@ -308,27 +319,41 @@ export default function CommunityGraph({ width = 800, height = 600, data: extern
     simulation.on('tick', () => {
       // 限制节点在图形区域内
       nodes.forEach(d => {
-        d.x = Math.max(margin.left + 20, Math.min(size.width - margin.right - 20, d.x));
-        d.y = Math.max(margin.top + 20, Math.min(size.height - margin.bottom - 20, d.y));
+        d.x = Math.max(margin.left + 20, Math.min(size.width - margin.right - 20, d.x!));
+        d.y = Math.max(margin.top + 20, Math.min(size.height - margin.bottom - 20, d.y!));
       });
 
       linkSelection
-        .attr('x1', d => d.source.x)
-        .attr('y1', d => d.source.y)
-        .attr('x2', d => d.target.x)
-        .attr('y2', d => d.target.y);
+        .attr('x1', d => (d.source as SimulationNode).x!)
+        .attr('y1', d => (d.source as SimulationNode).y!)
+        .attr('x2', d => (d.target as SimulationNode).x!)
+        .attr('y2', d => (d.target as SimulationNode).y!);
 
       nodeSelection
         .attr('transform', d => `translate(${d.x},${d.y})`);
 
       labelSelection
-        .attr('x', d => d.x)
-        .attr('y', d => d.y + 20);
+        .attr('x', d => d.x!)
+        .attr('y', d => d.y! + 20);
     });
 
     // 初始化时应用当前的高亮状态
     updateHighlighting();
-  };
+  }, [data, size, selectedNode, addDragBehavior, updateHighlighting]);
+
+  // 绘制 effect - 只在数据或尺寸变化时重建
+  useEffect(() => {
+    if (data && size.width && size.height) {
+      draw();
+    }
+  }, [data, size, draw]);
+
+  // 选中节点变化时只更新样式
+  useEffect(() => {
+    if (data && elementsRef.current.linkSelection && elementsRef.current.nodeSelection && elementsRef.current.labelSelection) {
+      updateHighlighting();
+    }
+  }, [selectedNode, data, updateHighlighting]);
 
   // 清理函数
   useEffect(() => {

@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import type { GraphData, Node, Edge } from '../../types/graph';
+import type { GraphData, GraphNode, GraphLink } from '@/types';
 
 // 定义类型接口
 interface MemberParticipation {
@@ -45,16 +45,16 @@ export async function POST(request: NextRequest) {
       const edges = graphData.edges;
       
       // 统计信息
-      const memberNodes = nodes.filter((n: Node) => n.type === 'member');
-      const eventNodes = nodes.filter((n: Node) => n.type === 'event');
-      const spaceNodes = nodes.filter((n: Node) => n.type === 'space');
+      const memberNodes = nodes.filter((n: GraphNode) => n.type === 'member');
+      const eventNodes = nodes.filter((n: GraphNode) => n.type === 'event');
+      const spaceNodes = nodes.filter((n: GraphNode) => n.type === 'space');
       
       // 活动分析
-      const eventsBySpace = eventNodes.reduce((acc: Record<string, number>, event: Node) => {
-        const spaceEdge = edges.find((e: Edge) => e.target === event.id && e.relationship === 'hosts');
+      const eventsBySpace = eventNodes.reduce((acc: Record<string, number>, event: GraphNode) => {
+        const spaceEdge = edges.find((e: GraphLink) => e.target === event.id && e.type === 'hosts');
         if (spaceEdge) {
-          const space = nodes.find((n: Node) => n.id === spaceEdge.source);
-          if (space) {
+          const space = nodes.find((n: GraphNode) => n.id === spaceEdge.source);
+          if (space && space.name) {
             acc[space.name] = (acc[space.name] || 0) + 1;
           }
         }
@@ -62,21 +62,21 @@ export async function POST(request: NextRequest) {
       }, {});
       
       // 成员参与度分析
-      const memberParticipation: MemberParticipation[] = memberNodes.map((member: Node) => {
-        const participateEdges = edges.filter((e: Edge) => 
-          (e.source === member.id && e.relationship === 'initiates') ||
-          (e.target === member.id && e.relationship === 'participates')
+      const memberParticipation: MemberParticipation[] = memberNodes.map((member: GraphNode) => {
+        const participateEdges = edges.filter((e: GraphLink) =>
+          (e.source === member.id && e.type === 'initiates') ||
+          (e.target === member.id && e.type === 'participates')
         );
         return {
-          name: member.name,
+          name: member.name || '未知',
           participation: participateEdges.length
         };
       }).sort((a: MemberParticipation, b: MemberParticipation) => b.participation - a.participation);
 
       // 时间分布分析
       const eventTimes = eventNodes
-        .filter((e: Node) => e.time)
-        .map((e: Node) => new Date(e.time!))
+        .filter((e: GraphNode) => e.time)
+        .map((e: GraphNode) => new Date(e.time!))
         .sort((a: Date, b: Date) => a.getTime() - b.getTime());
       
       detailedContext = `
@@ -88,9 +88,9 @@ export async function POST(request: NextRequest) {
 - 时间范围: ${eventTimes.length > 0 ? `${eventTimes[0].toLocaleDateString()} 至 ${eventTimes[eventTimes.length-1].toLocaleDateString()}` : '未知'}
 
 具体数据样本：
-成员: ${memberNodes.slice(0, 5).map((n: Node) => n.name).join(', ')}${memberNodes.length > 5 ? '等' : ''}
-活动: ${eventNodes.slice(0, 3).map((n: Node) => n.name).join(', ')}${eventNodes.length > 3 ? '等' : ''}
-场地: ${spaceNodes.map((n: Node) => n.name).join(', ')}`;
+成员: ${memberNodes.slice(0, 5).map((n: GraphNode) => n.name || '未知').join(', ')}${memberNodes.length > 5 ? '等' : ''}
+活动: ${eventNodes.slice(0, 3).map((n: GraphNode) => n.name || '未知').join(', ')}${eventNodes.length > 3 ? '等' : ''}
+场地: ${spaceNodes.map((n: GraphNode) => n.name || '未知').join(', ')}`;
     } else {
       detailedContext = '当前没有上传图数据。请用户先上传CSV文件来分析社区网络。';
     }

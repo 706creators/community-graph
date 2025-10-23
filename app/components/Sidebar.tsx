@@ -7,7 +7,7 @@ import {
   DocumentArrowUpIcon,
   ArrowDownTrayIcon,
 } from "@heroicons/react/24/outline";
-import { GraphData } from "../types/graph";
+import { GraphData } from "@/types";
 import { parseCSV, downloadSampleCSV } from "../utils/csvParser";
 
 interface SidebarProps {

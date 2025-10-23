@@ -1,12 +1,12 @@
-import { GraphData, Node, Edge } from '../types/graph';
+import { GraphData, GraphNode, GraphLink } from '@/types';
 
 export const parseCSV = (csvText: string): GraphData => {
   try {
     const lines = csvText.trim().split("\n");
     const headers = lines[0].split(",").map((h) => h.trim());
 
-    const nodes = new Map<string, Node>();
-    const edges: Edge[] = [];
+    const nodes = new Map<string, GraphNode>();
+    const edges: GraphLink[] = [];
 
     // 解析每一行数据
     for (let i = 1; i < lines.length; i++) {
@@ -40,9 +40,9 @@ export const parseCSV = (csvText: string): GraphData => {
           if (!nodes.has(initiatorId)) {
             nodes.set(initiatorId, {
               id: initiatorId,
-              type: "member",
+              type: "member" as const,
               name: initiator,
-              time: null,
+              time: undefined,
             });
           }
         });
@@ -53,9 +53,9 @@ export const parseCSV = (csvText: string): GraphData => {
           if (!nodes.has(participantId)) {
             nodes.set(participantId, {
               id: participantId,
-              type: "member",
+              type: "member" as const,
               name: participant,
-              time: null,
+              time: undefined,
             });
           }
         });
@@ -64,7 +64,7 @@ export const parseCSV = (csvText: string): GraphData => {
         if (!nodes.has(eventId)) {
           nodes.set(eventId, {
             id: eventId,
-            type: "event",
+            type: "event" as const,
             name: topic,
             time: time,
           });
@@ -74,9 +74,9 @@ export const parseCSV = (csvText: string): GraphData => {
         if (!nodes.has(spaceId)) {
           nodes.set(spaceId, {
             id: spaceId,
-            type: "space",
+            type: "space" as const,
             name: venue,
-            time: null,
+            time: undefined,
           });
         }
 
@@ -87,7 +87,7 @@ export const parseCSV = (csvText: string): GraphData => {
           edges.push({
             source: initiatorId,
             target: eventId,
-            relationship: "initiates",
+            type: "initiates",
             value: 1,
           });
         });
@@ -98,7 +98,7 @@ export const parseCSV = (csvText: string): GraphData => {
           edges.push({
             source: eventId,
             target: participantId,
-            relationship: "participates",
+            type: "participates",
             value: 1,
           });
         });
@@ -107,7 +107,7 @@ export const parseCSV = (csvText: string): GraphData => {
         edges.push({
           source: spaceId,
           target: eventId,
-          relationship: "hosts",
+          type: "hosts",
           value: 1,
         });
       }
